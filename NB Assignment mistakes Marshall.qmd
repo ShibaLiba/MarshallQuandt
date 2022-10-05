@@ -1,0 +1,115 @@
+---
+title: "Assigment - Naive Bayes DIY"
+author:
+  - name author here - Marshall
+  - name reviewer here - Bram
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+   html_notebook:
+    toc: true
+    toc_depth: 2
+---
+
+```{r}
+library(tidyverse)
+library(caret)
+library(e1071)
+library(tm)
+library(wordcloud)
+```
+
+# Data understanding
+
+```{r}
+url <- "https://raw.githubusercontent.com/HAN-M3DM-Data-Mining/assignments/master/datasets/NB-fakenews.csv"
+rawDF <- read.csv(url, header = TRUE)
+head(rawdf)
+```
+
+```{r}
+rawDF$label <- rawDF$label %>% factor %>% relevel("1")
+class(rawDF$text)
+table(rawDF$text)
+```
+
+```{r}
+reliable <- rawdf %>% filter(label == "0")
+fake <- rawdf %>% filter(label== "1")
+
+wordcloud(reliable$text, max.words = 20, scale = c(3, 0.8), colors= c("indianred1","indianred2","indianred3","indianred"))
+wordcloud(fake$text, max.words = 20, scale = c(3, 0.8), colors= c("lightsteelblue1","lightsteelblue2","lightsteelblue3","lightsteelblue"))
+```
+
+# Data Preparation
+
+```{r}
+rawCorpus <- Corpus(VectorSource(rawDF$text))
+inspect(rawCorpus[1:3])
+```
+
+```{r}
+cleanCorpus <- rawCorpus %>% tm_map(tolower) %>% tm_map(removeNumbers)
+cleanCorpus <- cleanCorpus %>% tm_map(tolower) %>% tm_map(removeWords, stopwords()) %>% tm_map(removePunctuation)
+cleanCorpus <- cleanCorpus %>% tm_map(stripWhitespace)
+tibble(Raw = rawCorpus$content[1:3], Clean = cleanCorpus$content[1:3])
+
+```
+
+```{r}
+cleanDTM <- cleanCorpus %>% DocumentTermMatrix
+inspect(cleanDTM)
+```
+
+# Modeling
+
+```{r}
+set.seed(1234)
+trainIndex <- createDataPartition(rawDF$label, p = .75, 
+                                  list = FALSE, 
+                                  times = 1)
+head(trainIndex)
+
+trainDF <- rawDF[trainIndex, ]
+
+testDF <- rawDF[-trainIndex, ]
+
+trainCorpus <- cleanCorpus[trainIndex]
+testCorpus <- cleanCorpus[-trainIndex]
+trainDTM <- cleanDTM[trainIndex, ]
+testDTM <- cleanDTM[-trainIndex, ]
+
+
+```
+
+```{r}
+freqWords <- trainDTM %>% findFreqTerms(5)
+trainDTM <-  DocumentTermMatrix(trainCorpus, list(dictionary = freqWords))
+testDTM <-  DocumentTermMatrix(testCorpus, list(dictionary = freqWords))
+```
+
+# Evaluation and Deployment
+
+```{r}
+convert_count <- function(x) {x <- ifelse(x>0, 1, 0) %>% factor(levels = c(0, 1), labels = c("no", "yes"))}
+
+nColsDTM <- dim(trainDTM)[2]
+trainDTM <- apply(trainDTM, MARGIN =  2, convert_count)
+testDTM <- apply(testDTM, MARGIN =  2, convert_count)
+head(trainDTM[, 1:10])
+```
+
+```{r}
+library(e1071)
+nbayesModel <- naiveBayes(trainDTM, trainDF$label, laplace = 1)
+
+predVec <- predict(nbayesModel, testDTM)
+
+
+```
+
+```{r}
+confusionMatrix(predVec, testDF$label, positive = "1", dnn = c("prediction", "true"))
+
+```
+
+## Suggestions and Mistakes
