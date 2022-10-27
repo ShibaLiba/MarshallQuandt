@@ -1,0 +1,45 @@
+---
+title: "Untitled"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be genode. You can embed code like this:
+
+```{r}
+library(fastDummies)
+library(dbplyr)
+library(tidyverse)
+```
+
+```{r}
+
+#importing the data
+rawData <- read.csv("https://raw.githubusercontent.com/ShibaLiba/MarshallQuandt/master/592139Article_Page_Views.csv")
+```
+
+```{r}
+cleanData <- dummy_cols(rawData,select_columns = "gender")
+```
+
+```{r}
+cleanData <- mutate(cleanData, type_dummy = recode(type, "News"=0, "Entertainment"=1))
+```
+
+```{r}
+cleanData <- dummy_cols(cleanData, select_columns = "clickbait_title")
+```
+
+# Modeling
+
+```{r}
+model1 <- lm(Page_views~clickbait_title_Yes+clickbait_title_No,
+             data=cleanData)
+summary(model1)
+```
